@@ -13,9 +13,17 @@ const sizePicker = document.getElementById("size");
 const smoothSlider = document.getElementById("smooth");
 const layersPanel = document.getElementById("layersPanel");
 
+const imageInput = document.getElementById("imageInput");
+const imgBtn = document.getElementById("imgBtn");
+const imgControls = document.getElementById("imageControls");
+const imgOk = document.getElementById("imgOk");
+const imgCancel = document.getElementById("imgCancel");
+
 let layers = [];
-let activeLayer = 1; // 0번은 선택 레이어
+let activeLayer = 1;
 let selectionLayer;
+
+let tempImage = null;
 
 function resizeCanvas() {
   canvas.width = window.innerWidth;
@@ -28,41 +36,33 @@ function resizeCanvas() {
 }
 window.addEventListener("resize", resizeCanvas);
 
-function createLayer(name) {
-  const c = document.createElement("canvas");
-  c.width = canvas.width;
-  c.height = canvas.height;
-  const cctx = c.getContext("2d");
-  cctx.lineCap = "round";
-  cctx.lineJoin = "round";
-
-  layers.push({
-    name,
-    canvas: c,
-    ctx: cctx,
-    opacity: 1,
-    selectable: true
-  });
-
-  activeLayer = layers.length - 1;
-  updateLayersUI();
-}
-
 function createSelectionLayer() {
   const c = document.createElement("canvas");
   c.width = canvas.width;
   c.height = canvas.height;
-  const cctx = c.getContext("2d");
-
   selectionLayer = {
     name: "선택 영역",
     canvas: c,
-    ctx: cctx,
+    ctx: c.getContext("2d"),
     opacity: 0.7,
     selectable: false
   };
+  layers.push(selectionLayer);
+}
 
-  layers.unshift(selectionLayer);
+function createLayer(name) {
+  const c = document.createElement("canvas");
+  c.width = canvas.width;
+  c.height = canvas.height;
+  layers.push({
+    name,
+    canvas: c,
+    ctx: c.getContext("2d"),
+    opacity: 1,
+    selectable: true
+  });
+  activeLayer = layers.length - 1;
+  updateLayersUI();
 }
 
 createSelectionLayer();
@@ -71,84 +71,17 @@ resizeCanvas();
 
 function updateLayersUI() {
   layersPanel.innerHTML = "";
-  layers.forEach((layer, i) => {
-    const div = document.createElement("div");
-    div.className = "layer" +
+  layers.forEach((l, i) => {
+    const d = document.createElement("div");
+    d.className = "layer" +
       (i === activeLayer ? " active" : "") +
-      (i === 0 ? " special" : "");
-    div.textContent = layer.name;
-
-    div.onclick = () => {
-      if (layer.selectable) {
-        activeLayer = i;
-        updateLayersUI();
-      }
-    };
-
-    layersPanel.appendChild(div);
+      (!l.selectable ? " special" : "");
+    d.textContent = l.name;
+    if (l.selectable) {
+      d.onclick = () => { activeLayer = i; updateLayersUI(); };
+    }
+    layersPanel.appendChild(d);
   });
-}
-
-function getPos(e) {
-  if (e.touches) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  return { x: e.clientX, y: e.clientY };
-}
-
-function transformPoint(p) {
-  const cx = canvas.width / 2;
-  const cy = canvas.height / 2;
-  let x = (p.x - cx) / scale;
-  let y = (p.y - cy) / scale;
-  const cos = Math.cos(-rotation);
-  const sin = Math.sin(-rotation);
-  return {
-    x: x * cos - y * sin + cx,
-    y: x * sin + y * cos + cy
-  };
-}
-
-function startDraw(e) {
-  drawing = true;
-  lastPoint = transformPoint(getPos(e));
-}
-
-function draw(e) {
-  if (!drawing) return;
-
-  let targetLayer =
-    tool === "select" ? layers[0] : layers[activeLayer];
-
-  let pos = transformPoint(getPos(e));
-
-  if (smoothEnabled) {
-    const s = smoothSlider.value;
-    pos.x = lastPoint.x + (pos.x - lastPoint.x) / s;
-    pos.y = lastPoint.y + (pos.y - lastPoint.y) / s;
-  }
-
-  const tctx = targetLayer.ctx;
-
-  tctx.beginPath();
-  tctx.moveTo(lastPoint.x, lastPoint.y);
-  tctx.lineTo(pos.x, pos.y);
-  tctx.lineWidth = sizePicker.value;
-
-  if (tool === "select") {
-    tctx.strokeStyle = "rgba(180, 100, 255, 0.7)";
-    tctx.globalCompositeOperation = "source-over";
-  } else {
-    tctx.strokeStyle = colorPicker.value;
-    tctx.globalCompositeOperation =
-      tool === "eraser" ? "destination-out" : "source-over";
-  }
-
-  tctx.stroke();
-  lastPoint = pos;
-  redraw();
-}
-
-function endDraw() {
-  drawing = false;
 }
 
 function redraw() {
@@ -160,37 +93,98 @@ function redraw() {
   ctx.rotate(rotation);
   ctx.translate(-canvas.width/2, -canvas.height/2);
 
-  layers.forEach((layer, i) => {
+  layers.forEach((l,i) => {
     if (i !== 0) {
-      ctx.save();
-      ctx.globalAlpha = layer.opacity;
-      ctx.globalCompositeOperation = "source-over";
-      ctx.drawImage(layer.canvas, 0, 0);
-      ctx.restore();
+      ctx.globalAlpha = l.opacity;
+      ctx.drawImage(l.canvas, 0, 0);
     }
   });
 
-  // 선택 영역 마스크
-  ctx.save();
   ctx.globalCompositeOperation = "destination-in";
   ctx.drawImage(selectionLayer.canvas, 0, 0);
-  ctx.restore();
+  ctx.globalCompositeOperation = "source-over";
 
-  // 선택 영역 표시
-  ctx.save();
   ctx.globalAlpha = selectionLayer.opacity;
   ctx.drawImage(selectionLayer.canvas, 0, 0);
-  ctx.restore();
+
+  if (tempImage) {
+    ctx.save();
+    ctx.translate(tempImage.x, tempImage.y);
+    ctx.rotate(tempImage.rot);
+    ctx.scale(tempImage.scale, tempImage.scale);
+    ctx.drawImage(tempImage.img, -tempImage.w/2, -tempImage.h/2);
+    ctx.restore();
+  }
 }
 
-canvas.addEventListener("mousedown", startDraw);
-canvas.addEventListener("mousemove", draw);
-canvas.addEventListener("mouseup", endDraw);
-canvas.addEventListener("mouseleave", endDraw);
+imgBtn.onclick = () => imageInput.click();
 
-canvas.addEventListener("touchstart", startDraw);
-canvas.addEventListener("touchmove", draw);
-canvas.addEventListener("touchend", endDraw);
+imageInput.onchange = e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const img = new Image();
+  img.onload = () => {
+    tempImage = {
+      img,
+      x: canvas.width/2,
+      y: canvas.height/2,
+      w: img.width,
+      h: img.height,
+      scale: 0.5,
+      rot: 0
+    };
+    imgControls.classList.remove("hidden");
+    redraw();
+  };
+  img.src = URL.createObjectURL(file);
+};
+
+canvas.addEventListener("wheel", e => {
+  if (!tempImage) return;
+  e.preventDefault();
+  tempImage.scale *= e.deltaY < 0 ? 1.05 : 0.95;
+  redraw();
+});
+
+canvas.addEventListener("pointerdown", e => {
+  if (!tempImage) return;
+  tempImage.drag = true;
+  tempImage.ox = e.clientX;
+  tempImage.oy = e.clientY;
+});
+
+canvas.addEventListener("pointermove", e => {
+  if (!tempImage || !tempImage.drag) return;
+  tempImage.x += e.clientX - tempImage.ox;
+  tempImage.y += e.clientY - tempImage.oy;
+  tempImage.ox = e.clientX;
+  tempImage.oy = e.clientY;
+  redraw();
+});
+
+canvas.addEventListener("pointerup", () => {
+  if (tempImage) tempImage.drag = false;
+});
+
+imgOk.onclick = () => {
+  const l = layers[activeLayer];
+  l.ctx.drawImage(
+    tempImage.img,
+    tempImage.x - tempImage.w/2,
+    tempImage.y - tempImage.h/2,
+    tempImage.w * tempImage.scale,
+    tempImage.h * tempImage.scale
+  );
+  tempImage = null;
+  imgControls.classList.add("hidden");
+  redraw();
+};
+
+imgCancel.onclick = () => {
+  tempImage = null;
+  imgControls.classList.add("hidden");
+  redraw();
+};
 
 document.getElementById("pen").onclick = () => tool = "pen";
 document.getElementById("eraser").onclick = () => tool = "eraser";
