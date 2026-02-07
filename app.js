@@ -14,7 +14,8 @@ const smoothSlider = document.getElementById("smooth");
 const layersPanel = document.getElementById("layersPanel");
 
 let layers = [];
-let activeLayer = 0;
+let activeLayer = 1; // 0번은 선택 레이어
+let selectionLayer;
 
 function resizeCanvas() {
   canvas.width = window.innerWidth;
@@ -28,24 +29,43 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 
 function createLayer(name) {
-  const layerCanvas = document.createElement("canvas");
-  layerCanvas.width = canvas.width;
-  layerCanvas.height = canvas.height;
-  const layerCtx = layerCanvas.getContext("2d");
-  layerCtx.lineCap = "round";
-  layerCtx.lineJoin = "round";
+  const c = document.createElement("canvas");
+  c.width = canvas.width;
+  c.height = canvas.height;
+  const cctx = c.getContext("2d");
+  cctx.lineCap = "round";
+  cctx.lineJoin = "round";
 
-  layers.unshift({
+  layers.push({
     name,
-    canvas: layerCanvas,
-    ctx: layerCtx,
-    opacity: 1
+    canvas: c,
+    ctx: cctx,
+    opacity: 1,
+    selectable: true
   });
 
-  activeLayer = 0;
+  activeLayer = layers.length - 1;
   updateLayersUI();
 }
 
+function createSelectionLayer() {
+  const c = document.createElement("canvas");
+  c.width = canvas.width;
+  c.height = canvas.height;
+  const cctx = c.getContext("2d");
+
+  selectionLayer = {
+    name: "선택 영역",
+    canvas: c,
+    ctx: cctx,
+    opacity: 0.7,
+    selectable: false
+  };
+
+  layers.unshift(selectionLayer);
+}
+
+createSelectionLayer();
 createLayer("Layer 1");
 resizeCanvas();
 
@@ -53,65 +73,18 @@ function updateLayersUI() {
   layersPanel.innerHTML = "";
   layers.forEach((layer, i) => {
     const div = document.createElement("div");
-    div.className = "layer" + (i === activeLayer ? " active" : "");
+    div.className = "layer" +
+      (i === activeLayer ? " active" : "") +
+      (i === 0 ? " special" : "");
     div.textContent = layer.name;
 
     div.onclick = () => {
-      activeLayer = i;
-      updateLayersUI();
-    };
-
-    const controls = document.createElement("div");
-    controls.className = "layer-controls";
-
-    const up = document.createElement("button");
-    up.textContent = "▲";
-    up.onclick = e => {
-      e.stopPropagation();
-      if (i > 0) {
-        [layers[i], layers[i - 1]] = [layers[i - 1], layers[i]];
-        activeLayer = i - 1;
+      if (layer.selectable) {
+        activeLayer = i;
         updateLayersUI();
       }
     };
 
-    const down = document.createElement("button");
-    down.textContent = "▼";
-    down.onclick = e => {
-      e.stopPropagation();
-      if (i < layers.length - 1) {
-        [layers[i], layers[i + 1]] = [layers[i + 1], layers[i]];
-        activeLayer = i + 1;
-        updateLayersUI();
-      }
-    };
-
-    const del = document.createElement("button");
-    del.textContent = "🗑";
-    del.onclick = e => {
-      e.stopPropagation();
-      if (layers.length > 1) {
-        layers.splice(i, 1);
-        activeLayer = 0;
-        updateLayersUI();
-        redraw();
-      }
-    };
-
-    controls.append(up, down, del);
-
-    const opacity = document.createElement("input");
-    opacity.type = "range";
-    opacity.min = 0;
-    opacity.max = 1;
-    opacity.step = 0.01;
-    opacity.value = layer.opacity;
-    opacity.oninput = e => {
-      layer.opacity = e.target.value;
-      redraw();
-    };
-
-    div.append(controls, opacity);
     layersPanel.appendChild(div);
   });
 }
@@ -141,8 +114,9 @@ function startDraw(e) {
 
 function draw(e) {
   if (!drawing) return;
-  const layer = layers[activeLayer];
-  const ctxL = layer.ctx;
+
+  let targetLayer =
+    tool === "select" ? layers[0] : layers[activeLayer];
 
   let pos = transformPoint(getPos(e));
 
@@ -152,15 +126,23 @@ function draw(e) {
     pos.y = lastPoint.y + (pos.y - lastPoint.y) / s;
   }
 
-  ctxL.beginPath();
-  ctxL.moveTo(lastPoint.x, lastPoint.y);
-  ctxL.lineTo(pos.x, pos.y);
-  ctxL.lineWidth = sizePicker.value;
-  ctxL.strokeStyle = colorPicker.value;
-  ctxL.globalCompositeOperation =
-    tool === "eraser" ? "destination-out" : "source-over";
-  ctxL.stroke();
+  const tctx = targetLayer.ctx;
 
+  tctx.beginPath();
+  tctx.moveTo(lastPoint.x, lastPoint.y);
+  tctx.lineTo(pos.x, pos.y);
+  tctx.lineWidth = sizePicker.value;
+
+  if (tool === "select") {
+    tctx.strokeStyle = "rgba(180, 100, 255, 0.7)";
+    tctx.globalCompositeOperation = "source-over";
+  } else {
+    tctx.strokeStyle = colorPicker.value;
+    tctx.globalCompositeOperation =
+      tool === "eraser" ? "destination-out" : "source-over";
+  }
+
+  tctx.stroke();
   lastPoint = pos;
   redraw();
 }
@@ -178,12 +160,27 @@ function redraw() {
   ctx.rotate(rotation);
   ctx.translate(-canvas.width/2, -canvas.height/2);
 
-  layers.slice().reverse().forEach(layer => {
-    ctx.globalAlpha = layer.opacity;
-    ctx.drawImage(layer.canvas, 0, 0);
+  layers.forEach((layer, i) => {
+    if (i !== 0) {
+      ctx.save();
+      ctx.globalAlpha = layer.opacity;
+      ctx.globalCompositeOperation = "source-over";
+      ctx.drawImage(layer.canvas, 0, 0);
+      ctx.restore();
+    }
   });
 
-  ctx.globalAlpha = 1;
+  // 선택 영역 마스크
+  ctx.save();
+  ctx.globalCompositeOperation = "destination-in";
+  ctx.drawImage(selectionLayer.canvas, 0, 0);
+  ctx.restore();
+
+  // 선택 영역 표시
+  ctx.save();
+  ctx.globalAlpha = selectionLayer.opacity;
+  ctx.drawImage(selectionLayer.canvas, 0, 0);
+  ctx.restore();
 }
 
 canvas.addEventListener("mousedown", startDraw);
@@ -197,8 +194,9 @@ canvas.addEventListener("touchend", endDraw);
 
 document.getElementById("pen").onclick = () => tool = "pen";
 document.getElementById("eraser").onclick = () => tool = "eraser";
+document.getElementById("select").onclick = () => tool = "select";
 document.getElementById("zoomIn").onclick = () => { scale *= 1.1; redraw(); };
 document.getElementById("zoomOut").onclick = () => { scale /= 1.1; redraw(); };
 document.getElementById("rotate").onclick = () => { rotation += Math.PI/12; redraw(); };
 document.getElementById("stabilizer").onclick = () => smoothEnabled = !smoothEnabled;
-document.getElementById("addLayer").onclick = () => createLayer(`Layer ${layers.length+1}`);
+document.getElementById("addLayer").onclick = () => createLayer(`Layer ${layers.length}`);
