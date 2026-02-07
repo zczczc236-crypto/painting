@@ -1,18 +1,20 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <title>Web Drawing App</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<title>Web Drawing + Animation</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+<!-- TOPBAR -->
 <div id="topbar">
   <button id="stabilizer">✋</button>
   <input type="range" id="smooth" min="1" max="20" value="5">
 </div>
 
+<!-- TOOLBAR -->
 <div id="toolbar">
   <input type="color" id="color" value="#000000">
   <input type="range" id="size" min="1" max="50" value="6">
@@ -20,7 +22,6 @@
   <button id="pen">🖌</button>
   <button id="eraser">🧽</button>
   <button id="select">🟣</button>
-
   <button id="imgBtn">📷</button>
 
   <button id="zoomIn">＋</button>
@@ -30,13 +31,24 @@
   <button id="addLayer">📄＋</button>
 </div>
 
+<!-- IMAGE CONTROLS -->
 <div id="imageControls" class="hidden">
   <button id="imgOk">✅</button>
   <button id="imgCancel">❌</button>
 </div>
 
-<div id="layersPanel"></div>
+<!-- ANIMATION CONTROLS -->
+<div id="animControls">
+  <button id="addFrame">🆕 Frame</button>
+  <button id="delFrame">🗑 Frame</button>
+  <button id="prevFrame">◀</button>
+  <button id="nextFrame">▶</button>
+  <span>FPS:</span>
+  <input type="number" id="fps" min="1" max="38" value="12">
+  <button id="playAnim">▶▶</button>
+</div>
 
+<div id="layersPanel"></div>
 <input type="file" id="imageInput" accept="image/*" hidden>
 
 <canvas id="canvas"></canvas>
