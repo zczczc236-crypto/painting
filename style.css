@@ -1,0 +1,43 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  touch-action: none;
+}
+
+body {
+  background: #111;
+  color: white;
+  overflow: hidden;
+  font-family: system-ui, sans-serif;
+}
+
+#toolbar {
+  position: fixed;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(30,30,30,0.95);
+  padding: 10px;
+  border-radius: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+
+#toolbar input,
+#toolbar button {
+  height: 36px;
+}
+
+button {
+  font-size: 18px;
+  border: none;
+  border-radius: 8px;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+canvas {
+  display: block;
+}
