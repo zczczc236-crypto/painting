@@ -16,16 +16,28 @@
 <div id="toolbar">
   <input type="color" id="color" value="#000000">
   <input type="range" id="size" min="1" max="50" value="6">
+
   <button id="pen">🖌</button>
   <button id="eraser">🧽</button>
   <button id="select">🟣</button>
+
+  <button id="imgBtn">📷</button>
+
   <button id="zoomIn">＋</button>
   <button id="zoomOut">－</button>
   <button id="rotate">⟳</button>
+
   <button id="addLayer">📄＋</button>
 </div>
 
+<div id="imageControls" class="hidden">
+  <button id="imgOk">✅</button>
+  <button id="imgCancel">❌</button>
+</div>
+
 <div id="layersPanel"></div>
+
+<input type="file" id="imageInput" accept="image/*" hidden>
 
 <canvas id="canvas"></canvas>
 
